@@ -8,21 +8,37 @@ class Node {
 
         this.parent = parent
         this.children = []
+        this.hide_children = true
         this.action = action
         this.num_children = 0
+        this.num_grandchildren = 0
+        this.num_visits = 0
+        this.is_expanded = false
+        this.is_terminal = false
+        this.num_visits = 0
+        this.num_visits_display = 0
 
-        // ancestorial_width indicates how wide this node's ancestorial tree is. Initialized at 1,
-        // since this node itself is responsible for a wideness of 1.
+        if (this.parent) {
+            this.depth = this.parent.depth + 1
+        } else {
+            this.depth = 0
+        }
+
+        // ancestorial_leaf_nodes indicates how wide this node's ancestorial tree is. When printing
+        // the tree, each leaf node is placed in a grid where each leaf node will have it's own 
+        // unique column, but leaf nodes accross the tree can have shared rows. 
+        // ancestorial_leaf_nodes is initialized at 1, since this node itself is responsible for a 
+        // wideness of 1. (each new node is a leaf node)
         // Example cases:
         // - If this node has a child, the width doesn't increase, that child can simple be placed
-        //   underneath it.
+        //   underneath it. (current node is not a leaf node anylonger, but the new child is)
         // - If this node has 2 children, then the width will be 2.
         // - If this node has 2 children, with each a grandchild, the width will be 2 because each
         //   grandchild can be place under each child.
         // - If this node has 2 children, of which 1 has a 2 grandchildren, then the width will be
         //   3, because the child with 2 grandchildren adds a width of 2, and the child with only 1
         //   grandchild adds a width of 1. 2+1=3
-        this.ancestorial_width = 1
+        this.ancestorial_leaf_nodes = 1
 
         // initialize positon of Node. x is by default set to be the middle of the screen. Accurate
         // x positon is calculated using update_pos_of_children().
@@ -30,10 +46,24 @@ class Node {
         if (this.parent) {
             this.position = createVector(width / 2, this.parent.position.y + node_size * 2)
             this.hash = this.parent.hash + "." + str(this.action)
+            this.default_color = [232, 163, 79]
         } else {
-            this.position = createVector(width / 2, node_size)
+            this.position = createVector(width / 2, 50)
             this.hash = "r"
+            this.default_color = [255, 0, 0]
         }
+        this.color = [this.default_color]
+    }
+
+    add_color_layer(color) {
+        this.color.push(color)
+
+        this.num_visits_display = this.num_visits
+    }
+
+    remove_color_layer() {
+        this.color.pop()
+
     }
 
     add_child(action) {
@@ -44,38 +74,51 @@ class Node {
         let child = new Node(this, action)
         this.children.push(child)
         this.num_children += 1
+        if (this.parent) {
+            this.parent.num_grandchildren += 1
+        }
     }
 
     draw_node() {
         /**
          * draw node and connecting lines to it's children.
          */
-        fill(232, 163, 79)
+        if (this.parent && this.parent.hide_children) {
+            return
+        }
+        var x_to_circle_border
+        var y_to_circle_border
+        
+        // print elipse for the node
+        fill(this.color[this.color.length - 1])
+        stroke(this.color[this.color.length - 1])
         ellipse(this.position.x, this.position.y, node_size, node_size)
-        for (let i = 0; i < (this.children.length); i++) {
-            stroke(232, 163, 79)
-            line(this.position.x, this.position.y, this.children[i].position.x, this.children[i].position.y)
-        }
-    }
 
-    show_tree() {
-        /**
-         * Recursively go down the tree and draw each node.
-         */
-        this.draw_node()
-        for (let i = 0; i < (this.children.length); i++) {
-            this.children[i].show_tree()
-        }
-    }
+        // print the num_visits inside the node
+        fill(0, 0, 0)
+        text(str(this.num_visits_display), this.position.x, this.position.y);
 
-    backpropagate(ancestorial_width_increase) {
-        /**
-         * backpropagate up the tree updating the ancestorial_width along the way
-         * @param {int} ancestorial_width_increase amount that the ancestorial_width should increase
-         */
-        this.ancestorial_width += ancestorial_width_increase
+        // draw a line from the edge of this node's ellipse to the edge of teh parent's node elipse
+        stroke(this.color[this.color.length - 1])
         if (this.parent) {
-            this.parent.backpropagate(ancestorial_width_increase)
+            if (this.position.x === this.parent.position.x) {
+                x_to_circle_border = 0
+                y_to_circle_border = node_size / 2
+            } else {
+                // find angle of angle between this node and parent node
+                let theta = Math.atan(Math.abs((this.position.y - this.parent.position.y) / (this.parent.position.x - this.position.x)))
+                
+                // find x and y axis of the cross-section of 
+                // - the line from the center of this node's ellipse to the center of the parent's ellipse
+                // - the circumference of this node's ellipse
+                x_to_circle_border = node_size / 2 * Math.cos(theta)
+                y_to_circle_border = x_to_circle_border * Math.tan(theta)
+
+                x_to_circle_border = x_to_circle_border * (this.position.x - this.parent.position.x) / Math.abs((this.position.x - this.parent.position.x))
+            }
+
+            // draw line
+            line(this.position.x - x_to_circle_border, this.position.y - y_to_circle_border, this.parent.position.x + x_to_circle_border, this.parent.position.y + y_to_circle_border)
         }
     }
 
@@ -84,66 +127,13 @@ class Node {
          * add children to the current node
          */
 
-        let children_prev = this.num_children
+        // let children_prev = this.num_children
 
-        // reandomly add children
-        let children_added = int(random(5)) + 2
+        // randomly add children
+        let children_added = 2 //int(random(2)) + 1
         for (let i = 0; i < children_added; i++) {
             this.add_child(this.num_children + 1)
         }
-
-        // if previously there was no child, then the first child added does not contribute to the 
-        // ancestorial_width_increase, because it can simply be placed underneath its parent. 
-        if (children_prev === 0) {
-            this.backpropagate(children_added - 1)
-        } else {
-            this.backpropagate(children_added)
-        }
     }
 
-    add_child_nodes_by_click(mx, my) {
-        /**
-         * Recursively go down the tree to find out which node was clicked on. 
-         * Then add child nodes.
-         */
-        let d = dist(this.position.x, this.position.y, mx, my)
-        if (d <= node_size / 2) {
-            this.expand_children()
-            return
-        }
-        for (let i = 0; i < (this.children.length); i++) {
-            this.children[i].add_child_nodes_by_click(mx, my)
-        }
-    }
-
-    update_pos_of_children() {
-        /**
-         * Recursively go down the tree to update the position of each node.
-         */
-
-        // If there are no children, return.
-        if (this.num_children === 0) {
-            return
-        }
-
-        // Determine the start location of the most left node.
-        // In order to have the tree centered, the starting positon will be set by going half of
-        // the ancestorial_width to the left. 
-        // (-1 because always 1 node can be place under the parent)
-        let start = this.position.x - ((this.ancestorial_width - 1) / 2) * node_size
-
-        for (let i = 0; i < (this.children.length); i++) {
-            // Set the position of the child by adding half of it's ancestorial_width to the start
-            // position. This way, half of it's ancetorial leaf nodes can be placed to the left, and 
-            // half can be placed to the right. (-1 because always 1 node can be place under the 
-            // parent)
-            this.children[i].position.x = start + (this.children[i].ancestorial_width-1)/2 * node_size
-            this.children[i].update_pos_of_children()
-
-            if (i < this.children.length - 1) {
-                // update the start location by adding the full ancestorial_width.
-                start += (this.children[i].ancestorial_width) * node_size
-            }
-        }
-    }
 }
