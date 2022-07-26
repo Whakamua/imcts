@@ -1,18 +1,26 @@
 function setup() {
 
-    pixelDensity(1)
-    createCanvas(1750, 1250)
+    pixelDensity(2)
+    createCanvas(2000, 1250)
 
     // Initialize some global variables
 
+    step_delay = 50
     // diameter of the node on display
-    node_size = 20
+    node_size = 60
 
+    // discount factor
+    gamma = 1.0
+
+    max_tree_depth = 4
+
+    exploration_constant = 1
+    
     // whether the next step show be backprop, or selection
     step_state = "selection" // choice = "selection" or "backprop"
 
     // number of iterations per search
-    max_iterations = 20
+    max_iterations = 2000
 
     // current iteration number
     iteration_number = 0
@@ -41,6 +49,9 @@ function setup() {
 }
 
 function do_finish_search_button() {
+    if (root.depth === max_tree_depth){
+        return
+    }
     // finish the search by running the remainder iterations
     finish_search()
 }
@@ -53,7 +64,10 @@ function finish_search() {
     }
 }
 
-function do_step_selection_button() {
+function do_step_selection_button(delay=0) {
+    if (root.depth === max_tree_depth){
+        return
+    }
     // do a single step of selection
     current_node = do_step_selection(current_node)
 
@@ -65,20 +79,28 @@ function do_step_selection_button() {
     // If the step_state turned to backprop, that means a node expansion occured. Therefore, 
     // the new children are unhidden and the trajectory's ancestorial width is updated.
     if (step_state === "backprop") {
+        current_node.num_visits+=1
         current_node.hide_children = false
-        update_ancestorial_leaf_nodes(current_node, current_node.num_children - 1)
+        if (current_node.depth < max_tree_depth){
+            update_ancestorial_leaf_nodes(current_node, current_node.num_children - 1)
+        }
     }
 }
 
 function do_step_selection(node) {
-    // if this funciton is called while the max iterations has been reached. simply don't continue.
-    if (iteration_number >= max_iterations) {
+    if (node.depth === max_tree_depth){
+        step_state = "backprop"
+        let policy_value = get_policy_and_value(node)
+        node.policy = policy_value[0]
+        node.value = policy_value[1]
         return node
     }
-
     // if the current node is not expanded, expand it and switch the step_state to backprop
     if (!node.is_expanded) {
         expand_children(node)
+        let policy_value = get_policy_and_value(node)
+        node.policy = policy_value[0]
+        node.value = policy_value[1]
         step_state = "backprop"
         return node
         // else get the next best child
@@ -89,6 +111,9 @@ function do_step_selection(node) {
 }
 
 function do_step_backprop_button() {
+    if (root.depth === max_tree_depth){
+        return
+    }
     // remove the highlight that got added during the selection step
     if (current_node !== root) {
         current_node.remove_color_layer()
@@ -106,7 +131,6 @@ function do_step_backprop_button() {
 function do_step_backpropagate(node) {
     // perform a backpropagation step
     node = step_backpropagate(node)
-
     // when the root node got reached, change to selection mode and increment the iteration number
     if (node === root) {
         step_state = "selection"
@@ -116,6 +140,9 @@ function do_step_backpropagate(node) {
 }
 
 function do_finish_iteration_button() {
+    if (root.depth === max_tree_depth){
+        return
+    }
     // If all the max iterations has been reached. Make sure that no more iterations can be done,
     // when the button is pressed.
     if (iteration_number >= max_iterations) {
@@ -134,18 +161,29 @@ function finish_iteration() {
     selection_to_backprop_pause = 250
 
     // while still in the selection state:
-    while (step_state === "selection") {
-        // select the best node and highlight it after a delay
-        current_node = do_step_selection(current_node)
-        delay += delay_delta
-        if (step_state === "selection") {
-            node_add_color_layer_delayed(current_node, delay, [255, 255, 255])
+    if (step_state === "selection"){
+        while (true) {
+            // select the best node and highlight it after a delay
+            current_node = do_step_selection(current_node)
+            delay += delay_delta
+            if (step_state === "selection") {
+                node_add_color_layer_delayed(current_node, delay, [255, 255, 255])
+            }
+            // If the step_state turned to backprop, that means a node expansion occured. Therefore, 
+            // the new children are unhidden and the trajectory's ancestorial width is updated.
+            if (step_state === "backprop") {
+                current_node.num_visits+=1
+                // unhide the children and update the ancestorial width after a delay
+                node_unhide_children_delayed(current_node, delay + selection_to_backprop_pause / 2)
+                if (current_node.depth < max_tree_depth){
+                    update_ancestorial_leaf_nodes_delayed(current_node, delay + selection_to_backprop_pause / 2)
+                }
+                break
+            }
         }
     }
 
-    // unhide the children and update the ancestorial width after a delay
-    node_unhide_children_delayed(current_node, delay + selection_to_backprop_pause / 2)
-    update_ancestorial_leaf_nodes_delayed(current_node, delay + selection_to_backprop_pause / 2)
+
 
     delay += selection_to_backprop_pause
 
@@ -156,17 +194,17 @@ function finish_iteration() {
         if (current_node !== root) {
             node_remove_color_layer_delayed(current_node, delay)
         }
-
         // do a backpropagation step, the node returned is the parent of the node given
         current_node = do_step_backpropagate(current_node)
         delay += delay_delta
+        // whenever enough iterations have been completed, find the next root node. Do this after a 
+        // delay so that it only gets animated after the previous animations are done
+        if (iteration_number === max_iterations) {
+            next_root_delayed(root, delay)
+            break
+        }
     }
 
-    // whenever enough iterations have been completed, find the next root node. Do this after a 
-    // delay so that it only gets animated after the previous animations are done
-    if (iteration_number === max_iterations) {
-        next_root_delayed(root, delay)
-    }
 }
 
 function draw() {

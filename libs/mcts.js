@@ -20,25 +20,46 @@ function expand_children(node) {
     node.is_expanded = true
 }
 
+function get_PUCB(node) {
+    var P = 0
+
+    if (node.parent){
+        P = exploration_constant * node.parent.policy[node.action] * node.parent.num_visits ** 0.5 / (1 + node.num_visits)
+    } else {
+        P = 0
+    }
+    return node.value + P
+}
+
 function get_best_child(node) {
     // find the best child based on heuristics
 
-    let support = [...Array(node.num_children).keys()]
-    let prob_dist = Array(node.num_children)
-    for (let i = 0; i < prob_dist.length; i++) {
-        prob_dist[i] = 1 / prob_dist.length
+    // let support = [...Array(node.num_children).keys()]
+    // let prob_dist = Array(node.num_children)
+    // for (let i = 0; i < prob_dist.length; i++) {
+    //     prob_dist[i] = 1 / prob_dist.length
+    // }
+
+    // // let action = weightedChoice(support, prob_dist)
+    // let action = null
+    // if (node.depth % 2 === 0) {
+    //     action = weightedChoice([0, 1], [0.75, 0.25])
+    // } else {
+    //     action = weightedChoice([0, 1], [0.25, 0.75])
+    // }
+
+    var children_PUCB = []; children_PUCB.length = node.num_children
+
+    for (let i = 0; i < node.num_children; i++) {
+
+        let PUCB = get_PUCB(node.children[i])
+        node.children[i].PUCB = PUCB
+        children_PUCB[i] = PUCB
     }
 
-    // let action = weightedChoice(support, prob_dist)
-    let action = null
-    if (node.depth % 2 === 0) {
-        action = weightedChoice([0, 1], [0.75, 0.25])
-    } else {
-        action = weightedChoice([0, 1], [0.25, 0.75])
-    }
+    action = indexOfMax(children_PUCB)
 
     best_child = node.children[action]
-    best_child.num_visits += 1
     return best_child
 }
 
@@ -61,10 +82,12 @@ function get_most_visited_node(node) {
 
 function step_backpropagate(node) {
     // do a single backpropagation step
-
     if (node === root) {
         return node
     } else {
+        let new_value = node.reward + gamma * node.value
+        node.parent.value = ((node.parent.value * node.parent.num_visits) + new_value) / (node.parent.num_visits + 1)
+        node.parent.num_visits += 1
         node = node.parent
         return node
     }
@@ -87,4 +110,23 @@ function next_root_delayed(root, delay) {
     setTimeout(() => {
         next_root(root)
     }, delay)
+}
+
+function get_policy_and_value(node) {
+    let policy = []; policy.length = node.num_children
+    let sum_policy = 0
+    for (let i = 0; i < node.num_children; i++) {
+        policy[i] = 1 // random(1) / node.num_children
+        sum_policy += policy[i]
+    }
+    for (let i = 0; i < node.num_children; i++) [
+        policy[i] /= sum_policy
+    ]
+    var value
+    if (node.depth === max_tree_depth){
+        value = node.reward // node.reward * 1 / (1 - gamma)
+    } else{
+        value = 0
+    }
+    return [policy, value]
 }

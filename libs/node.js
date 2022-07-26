@@ -17,6 +17,15 @@ class Node {
         this.is_terminal = false
         this.num_visits = 0
         this.num_visits_display = 0
+        this.policy = []
+        this.reward = random(1)
+        if (this.parent){   
+            this.return = this.parent.return + this.reward
+        } else {
+            this.return = this.reward
+        }
+        this.value = 0
+        this.PUCB = 0
 
         if (this.parent) {
             this.depth = this.parent.depth + 1
@@ -57,12 +66,11 @@ class Node {
 
     add_color_layer(color) {
         this.color.push(color)
-
-        this.num_visits_display = this.num_visits
     }
 
     remove_color_layer() {
         this.color.pop()
+        this.num_visits_display = this.num_visits
 
     }
 
@@ -96,7 +104,21 @@ class Node {
 
         // print the num_visits inside the node
         fill(0, 0, 0)
-        text(str(this.num_visits_display), this.position.x, this.position.y);
+        textSize(node_size/8)
+        let value = 0
+        if (this.num_visits > 0){
+            value = this.value
+        }
+        let PUCB = get_PUCB(this)
+        let text_input = ("N: " + str(this.num_visits) + "\n" + 
+        "U: " + str(PUCB).slice(0, 4) + "\n" +
+        "V: " + str(value).slice(0, 4) + "\n" +
+        "r: " + str(this.reward).slice(0, 4) + "\n" +
+        "R: " + str(this.return).slice(0, 4) + "\n")
+        if (this.parent){
+            text_input = text_input + "P: " + str(this.parent.policy[this.action]).slice(0,5)
+        }
+        text(text_input,this.position.x-node_size/4, this.position.y-node_size/3)
 
         // draw a line from the edge of this node's ellipse to the edge of teh parent's node elipse
         stroke(this.color[this.color.length - 1])
@@ -126,8 +148,6 @@ class Node {
         /**
          * add children to the current node
          */
-
-        // let children_prev = this.num_children
 
         // randomly add children
         let children_added = 2 //int(random(2)) + 1
