@@ -18,20 +18,32 @@ class Node {
         this.num_visits = 0
         this.num_visits_display = 0
         this.policy = []
-        this.reward = random(1)
-        if (this.parent){   
-            this.return = this.parent.return + this.reward
-        } else {
-            this.return = this.reward
-        }
+        this.reward = abs(randomGaussian(reward_mean, reward_std))
+
         this.value = 0
-        this.PUCB = 0
+        this.PUCT = 0
 
         if (this.parent) {
             this.depth = this.parent.depth + 1
         } else {
             this.depth = 0
         }
+        if (this.depth === max_tree_depth && mega_reward_available) {
+            this.reward += 10
+            mega_reward_available = false
+        }
+
+        if (this.parent) {
+            this.return = this.parent.return + this.reward
+        } else {
+            this.return = this.reward
+        }
+        if (this.return > max_return) {
+            second_max_return = max_return
+            max_return = this.return
+        }
+
+        this.max_value = 0
 
         // ancestorial_leaf_nodes indicates how wide this node's ancestorial tree is. When printing
         // the tree, each leaf node is placed in a grid where each leaf node will have it's own 
@@ -91,12 +103,13 @@ class Node {
         /**
          * draw node and connecting lines to it's children.
          */
+        // print(str(this.hash) + " | " + str(this.position))
         if (this.parent && this.parent.hide_children) {
             return
         }
         var x_to_circle_border
         var y_to_circle_border
-        
+
         // print elipse for the node
         fill(this.color[this.color.length - 1])
         stroke(this.color[this.color.length - 1])
@@ -104,21 +117,23 @@ class Node {
 
         // print the num_visits inside the node
         fill(0, 0, 0)
-        textSize(node_size/8)
+        textSize(node_size / 10)
         let value = 0
-        if (this.num_visits > 0){
+        if (this.num_visits > 0) {
             value = this.value
         }
-        let PUCB = get_PUCB(this)
-        let text_input = ("N: " + str(this.num_visits) + "\n" + 
-        "U: " + str(PUCB).slice(0, 4) + "\n" +
-        "V: " + str(value).slice(0, 4) + "\n" +
-        "r: " + str(this.reward).slice(0, 4) + "\n" +
-        "R: " + str(this.return).slice(0, 4) + "\n")
-        if (this.parent){
-            text_input = text_input + "P: " + str(this.parent.policy[this.action]).slice(0,5)
+        let text_input = ("N: " + str(this.num_visits) + "\n"
+            + "U: " + str(get_U(this)).slice(0, 4) + "\n"
+            + "Q: " + str(get_Q(this)).slice(0, 4) + "\n"
+            + "r: " + str(this.reward).slice(0, 4) + "\n"
+            + "R: " + str(this.return).slice(0, 4) + "\n"
+            + "PUCT " + str(get_PUCT(this)).slice(0, 4) + "\n"
+            // + "mQ: " + str(this.max_value+this.reward).slice(0,4)
+        )
+        if (this.parent) {
+            text_input = text_input + "P: " + str(this.parent.policy[this.action]).slice(0, 5)
         }
-        text(text_input,this.position.x-node_size/4, this.position.y-node_size/3)
+        text(text_input, this.position.x - node_size / 4, this.position.y - node_size / 3)
 
         // draw a line from the edge of this node's ellipse to the edge of teh parent's node elipse
         stroke(this.color[this.color.length - 1])
@@ -129,7 +144,7 @@ class Node {
             } else {
                 // find angle of angle between this node and parent node
                 let theta = Math.atan(Math.abs((this.position.y - this.parent.position.y) / (this.parent.position.x - this.position.x)))
-                
+
                 // find x and y axis of the cross-section of 
                 // - the line from the center of this node's ellipse to the center of the parent's ellipse
                 // - the circumference of this node's ellipse

@@ -12,7 +12,7 @@ function expand_children(node) {
     // add children to the current node
 
     // randomly add children
-    let children_added = 2 //int(random(2)) + 1
+    let children_added = int(random(3)) + 1
     let num_current_children = node.num_children
     for (let i = 0; i < children_added; i++) {
         add_child(node, num_current_children + i)
@@ -20,15 +20,24 @@ function expand_children(node) {
     node.is_expanded = true
 }
 
-function get_PUCB(node) {
-    var P = 0
-
-    if (node.parent){
-        P = exploration_constant * node.parent.policy[node.action] * node.parent.num_visits ** 0.5 / (1 + node.num_visits)
+function get_U(node) {
+    if (node.parent) {
+        return exploration_constant * node.parent.policy[node.action] * node.parent.num_visits ** 0.5 / (1 + node.num_visits)
     } else {
-        P = 0
+        return 0
     }
-    return node.value + P
+}
+
+function get_Q(node) {
+    if (node.num_visits > 0) {
+        return gamma * node.value + node.reward
+    } else {
+        return 0
+    }
+}
+
+function get_PUCT(node) {
+    return get_Q(node) + get_U(node)
 }
 
 function get_best_child(node) {
@@ -48,16 +57,16 @@ function get_best_child(node) {
     //     action = weightedChoice([0, 1], [0.25, 0.75])
     // }
 
-    var children_PUCB = []; children_PUCB.length = node.num_children
+    var children_PUCT = []; children_PUCT.length = node.num_children
 
     for (let i = 0; i < node.num_children; i++) {
 
-        let PUCB = get_PUCB(node.children[i])
-        node.children[i].PUCB = PUCB
-        children_PUCB[i] = PUCB
+        let PUCT = get_PUCT(node.children[i])
+        node.children[i].PUCT = PUCT
+        children_PUCT[i] = PUCT
     }
 
-    action = indexOfMax(children_PUCB)
+    action = indexOfMax(children_PUCT)
 
     best_child = node.children[action]
     return best_child
@@ -80,23 +89,25 @@ function get_most_visited_node(node) {
     return best_children[best_child_idx]
 }
 
-function step_backpropagate(node) {
+function step_backpropagate(node, value) {
     // do a single backpropagation step
     if (node === root) {
-        return node
+        return [node, value]
     } else {
-        let new_value = node.reward + gamma * node.value
+        if (node.parent.max_value < node.max_value + node.reward) {
+            node.parent.max_value = node.max_value + node.reward
+        }
+        let new_value = node.reward + gamma * value
         node.parent.value = ((node.parent.value * node.parent.num_visits) + new_value) / (node.parent.num_visits + 1)
         node.parent.num_visits += 1
         node = node.parent
-        return node
+        return [node, new_value]
     }
 }
 
 function next_root(current_root) {
     // find the most visited child of the current root and set it to be the new root.
     root = get_most_visited_node(current_root)
-
     // update it's color
     root.default_color = root.parent.default_color
     root.color[0] = root.parent.default_color
@@ -116,17 +127,18 @@ function get_policy_and_value(node) {
     let policy = []; policy.length = node.num_children
     let sum_policy = 0
     for (let i = 0; i < node.num_children; i++) {
-        policy[i] = 1 // random(1) / node.num_children
+        policy[i] = 0.2 + random(0.8)
         sum_policy += policy[i]
     }
     for (let i = 0; i < node.num_children; i++) [
         policy[i] /= sum_policy
     ]
     var value
-    if (node.depth === max_tree_depth){
-        value = node.reward // node.reward * 1 / (1 - gamma)
-    } else{
-        value = 0
-    }
+    // if (node.depth === max_tree_depth){
+    //     value = node.reward // node.reward * 1 / (1 - gamma)
+    // } else{
+    //     value = 0
+    // }
+    value = reward_mean * 1 / (1 - gamma)
     return [policy, value]
 }
