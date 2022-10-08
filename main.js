@@ -1,42 +1,32 @@
 function setup() {
-
+    randomSeed(23)
     pixelDensity(2)
-    createCanvas(2000, 1250)
+    createCanvas(800, 800)
 
-    // Initialize some global variables
-    testing = false
-    step_delay = 50
-    // diameter of the node on display
-    node_size = 60
+    conf = {} // configuration dict
 
-    // discount factor
-    gamma = 0.8
+    // Set mouse position as not being pressed and reset the frame offset.
+    mouse_being_pressed = false
+    reset_frame_offset()
 
-    mega_reward_available = true
+    // animation
+    // To make the animation of highlighting nodes not all instant. A delay is added between each
+    // highlight that is displayed.
+    delay = 0 // keeps track of after how much delay each animation needs to be displayed.
+    step_delay = 50 // delay between each animation step
+    conf.node_size = 60 // diameter of the node on display
+    conf.trajectory_color = [255, 0, 0] // rgb color of nodes in chosen trajectory
 
-    max_tree_depth = 5
+    // mcts hyperparams
+    conf.gamma = 0.8 // discount factor
+    conf.max_tree_depth = 3 // maximum tree search depth for mcts
+    conf.exploration_constant = 1 // exploration constant in the PUCT formula
+    conf.max_iterations = 20000 // number of iterations per search
 
-    exploration_constant = 2
-
-    // whether the next step show be backprop, or selection
-    step_state = "selection" // choice = "selection" or "backprop"
-
-    // number of iterations per search
-    max_iterations = 2000
-
-    // current iteration number
-    iteration_number = 0
-
-    reward_mean = 0
-    reward_std = 0.2
-
-    // Set-up tree by initializing a root node
-    max_return = 0
-    second_max_return = 0
-    first_root = new Node(null, 0)
-    root = first_root
-    current_node = root
-    current_value = 0
+    // mean and standard deviation of the rewards that are assigned 
+    // randomly to newly created nodes.
+    conf.reward_mean = 0
+    conf.reward_std = 0.2
 
     // buttons:
     finish_search_button = createButton('finish_search')
@@ -55,30 +45,79 @@ function setup() {
     step_backprop_button.position(width / 2 + 103, 0)
     step_backprop_button.mousePressed(do_step_backprop_button)
 
-    // test()
+    // reset the tree, creating only a root node
+    reset_tree()
 
+    // test() // uncomment to run the test function
+}
+
+function switch_step_state_to(new_step_state) {
+    if (new_step_state === "backprop") {
+        step_state = "backprop"
+    } else if (new_step_state === "selection"){
+        // when switching to selection, this marks the end of a backpropagation step, and the 
+        // iteration number is incremented by 1.
+        step_state = "selection"
+        iteration_number += 1
+    }
+}
+
+function reset_frame_offset() {
+    /**
+     * Resets the frame back to its original position.
+     */
+
+    // seting the offset of the frame to x=0 and y=0
+    node_offset = createVector(0, 0)
+}
+
+function reset_tree() {
+    /**
+     * resets the tree so that the is only 1 root node with no children.
+     */
+
+    max_return = -Infinity // initialize max return to be -inf
+    second_max_return = -Infinity // initialize second max return to be -inf
+    iteration_number = 0 // reset current iteration number
+    first_root = new Node(null, 0) // set a new first_root node, this is the top node in the tree.
+    root = first_root // set the current node to be the first_root, so mcts sees this as its root.
+    root.set_default_color(conf.trajectory_color)
+    current_node = root // set the current node to be the root, this node the mcts will evaluate.
+    backprop_value = 0 // value that is used to update parent nodes value during backpropagation.
+    one_time_mega_reward = 0 // reward given to the first node that is created at a depth equal to 
+    // the max tree depth, this is to make sure that there is one clear trajectory that should 
+    // dominate, this makes it possible for MCTS to find the most optimal trajectory with less 
+    // iterations.
+    step_state = "selection" // the step state indicates whether "selection" or "backprop" is the
+    // next step to be performed. "selection" searches down in the tree until a leaf node is 
+    // reached. "backprop" navigates back to the root node updating the search statistics of all 
+    // nodes encountered.
 }
 
 function test() {
-    noLoop()
-    testing = true
-    test_runs = 100
-    step_delay = 0
+    /**
+     * tests the MCTS and prints statistics on how often the optimal trajectory is found.
+     */
 
-    pass = 0
-    fail = 0
-    avg_diff_fail = 0
-    avg_diff_pass = 0
+    // turn off automatic looping of the draw() function. Also turn off animations.
+    noLoop()
+    step_delay = 0
+    // amount of times to run mcts
+    test_runs = 100
+
+    // initializing some statistics
+    pass = 0 // amount of times max return was found
+    fail = 0 // amount of times max return was not found
+    avg_diff_fail = 0 // difference between max return and second max return in failed cases
+    avg_diff_pass = 0 // difference between max return and second max return in passed cases
+
     for (let i = 0; i < test_runs; i++) {
+        // randomSeed(i)
         print("testing")
-        max_return = 0
-        iteration_number = 0
-        first_root = new Node(null, 0)
-        root = first_root
-        current_node = root
-        current_value = 0
-        mega_reward_available = true
-        for (let i = 0; i < max_tree_depth; i++) {
+
+        // reset the tree and run finish_search until max tree depth is reached.
+        reset_tree()
+        for (let i = 0; i < conf.max_tree_depth; i++) {
             finish_search()
         }
         if (root.return === max_return) {
@@ -93,14 +132,17 @@ function test() {
     print("pass %: " + str(pass / (pass + fail)))
     print("avg diff of failures: " + str(avg_diff_fail))
     print("avg diff of passes: " + str(avg_diff_pass))
+
+    // update the positions in the last generated tree and continue animation.
     update_pos_of_children(first_root)
-    testing = false
     loop()
-    a = 1
 }
 
 function do_finish_search_button() {
-    if (root.depth === max_tree_depth) {
+    /**
+     * run finish_search on button click
+     */
+    if (root.depth === conf.max_tree_depth) {
         return
     }
     // finish the search by running the remainder iterations
@@ -108,17 +150,21 @@ function do_finish_search_button() {
 }
 
 function finish_search() {
-    // finish the search by running the remainder iterations
-    num_it_left = max_iterations - iteration_number
+    // finish the search by running the remainding iterations
+    num_it_left = conf.max_iterations - iteration_number
     for (let i = 0; i < num_it_left; i++) {
         finish_iteration()
     }
 }
 
-function do_step_selection_button(delay = 0) {
-    if (root.depth === max_tree_depth) {
+function do_step_selection_button() {
+    /**
+     * run do_step_selection on button click if the max tree depth has not been reached yet.
+     */
+     if (root.depth === conf.max_tree_depth) {
         return
     }
+
     // do a single step of selection
     current_node = do_step_selection(current_node)
 
@@ -128,33 +174,38 @@ function do_step_selection_button(delay = 0) {
     }
 
     // If the step_state turned to backprop, that means a node expansion occured. Therefore, 
-    // the new children are unhidden and the trajectory's ancestorial width is updated.
+    // the new children are unhidden and the trajectory's offspring width is updated.
     if (step_state === "backprop") {
-        current_node.num_visits += 1
         current_node.hide_children = false
-        if (current_node.depth < max_tree_depth) {
-            update_ancestorial_leaf_nodes(current_node, current_node.num_children - 1)
+        if (current_node.depth < conf.max_tree_depth) {
+            update_offspring_leaf_nodes(current_node, current_node.num_children - 1)
         }
     }
 }
 
 function do_step_selection(node) {
-    if (node.depth === max_tree_depth) {
-        step_state = "backprop"
+    /**
+     * run a selection step. Change the mode from slection to backprop when a leaf node is reached.
+     */
+
+    // if node depth === max tree depth, this is considered a leaf node therefore:
+    // - the policy and value are evaluated.
+    // - the step_state is switched to backprop
+    if (node.depth === conf.max_tree_depth) {
         let policy_value = get_policy_and_value(node)
         node.policy = policy_value[0]
-        node.value = policy_value[1]
-        current_value = policy_value[1]
+        backprop_value = policy_value[1]
+        switch_step_state_to("backprop")
         return node
     }
-    // if the current node is not expanded, expand it and switch the step_state to backprop
+    // if the current node is not expanded, this is a leaf node, expand it and switch the 
+    // step_state to backprop.
     if (!node.is_expanded) {
         expand_children(node)
         let policy_value = get_policy_and_value(node)
         node.policy = policy_value[0]
-        node.value = policy_value[1]
-        current_value = policy_value[1]
-        step_state = "backprop"
+        backprop_value = policy_value[1]
+        switch_step_state_to("backprop")
         return node
         // else get the next best child
     } else {
@@ -164,9 +215,9 @@ function do_step_selection(node) {
 }
 
 function do_step_backprop_button() {
-    if (root.depth === max_tree_depth) {
-        return
-    }
+    /**
+     * run do_step_backpropagation on button click.
+     */
     // remove the highlight that got added during the selection step
     if (current_node !== root) {
         current_node.remove_color_layer()
@@ -176,98 +227,90 @@ function do_step_backprop_button() {
     current_node = do_step_backpropagate(current_node)
 
     // whenever enough iterations have been completed, find the next root node.
-    if (iteration_number === max_iterations) {
+    if (iteration_number === conf.max_iterations) {
         next_root(root)
     }
 }
 
 function do_step_backpropagate(node) {
-    // perform a backpropagation step
-    node_value = step_backpropagate(node, current_value)
-    node = node_value[0]
-    current_value = node_value[1]
-    // when the root node got reached, change to selection mode and increment the iteration number
-    if (node === root) {
-        step_state = "selection"
-        iteration_number += 1
+    /**
+     * Perform a backpropagation step.
+     */
+
+    // when the node is the root node, change to selection mode and increment the iteration number
+    // since backpropagation reaching the root node marks the end of an iteration.
+
+    new_node = step_backpropagate(node)
+
+    // If the new_node is false, that means that the root node has been reached. In that case 
+    // change the mode from "backprop" to "selection" and increment the iteration number
+    if (new_node === false) {
+        switch_step_state_to("selection")
+        return node
+    } else {
+        return new_node
     }
-    return node
 }
 
 function do_finish_iteration_button() {
-    if (root.depth === max_tree_depth) {
-        return
-    }
-    // If all the max iterations has been reached. Make sure that no more iterations can be done,
-    // when the button is pressed.
-    if (iteration_number >= max_iterations) {
+    /**
+     * Run finish_iteration on button click.
+     */
+    if (root.depth === conf.max_tree_depth) {
         return
     }
     finish_iteration()
 }
 
 function finish_iteration() {
-    // Finish the iteration by running the remaining selection and backpropagation steps
+    /** 
+     * Finish the iteration by running the remaining selection and backpropagation steps
+     */
 
-    // To make the animation of highlighting nodes not all instant. A delay is added between each
-    // highlight that is displayed. The next variables keep track of that.
+    // resetting delay
     delay = 0
-    delay_delta = 50
-    selection_to_backprop_pause = 250
 
-    // while still in the selection state:
-    if (step_state === "selection") {
-        while (true) {
-            // select the best node and highlight it after a delay
-            current_node = do_step_selection(current_node)
-            delay += delay_delta
-            if (step_state === "selection" && testing === false) {
-                node_add_color_layer_delayed(current_node, delay, [255, 255, 255])
-            }
-            // If the step_state turned to backprop, that means a node expansion occured. Therefore, 
-            // the new children are unhidden and the trajectory's ancestorial width is updated.
-            if (step_state === "backprop") {
-                current_node.num_visits += 1
-                // unhide the children and update the ancestorial width after a delay
-                if (testing === false) {
-                    node_unhide_children_delayed(current_node, delay + selection_to_backprop_pause / 2)
-                } else {
-                    current_node.hide_children = false
-                }
-                if (current_node.depth < max_tree_depth) {
-                    if (testing === false) {
-                        update_ancestorial_leaf_nodes_delayed(current_node, delay + selection_to_backprop_pause / 2)
-                    } else {
-                        update_ancestorial_leaf_nodes(current_node, current_node.num_children - 1)
-                    }
-                }
-                break
+    // while in the selection state:
+    while (step_state === "selection") {
+        // select the best node
+        current_node = do_step_selection(current_node)
+
+        // add to the delay and highlight the new current node after that delay.
+        delay += step_delay
+        if (step_state === "selection") {
+            node_add_color_layer_delayed(current_node, delay, [255, 255, 255])
+        }
+
+        // If the step_state turned to backprop, that means a node expansion occured. However the
+        // created nodes are still hidden for the sake of a nice animation. Now, the 
+        // offspring width is updated and the children are unhidden after some delay.
+        if (step_state === "backprop") {
+            // incrementing the delay 
+            delay += step_delay * 2
+            // unhide the children and update the offspring width after a delay
+            node_unhide_children_delayed(current_node, delay)
+            if (current_node.depth < conf.max_tree_depth) {
+                update_offspring_leaf_nodes_delayed(current_node, delay)
             }
         }
     }
 
-
-
-    delay += selection_to_backprop_pause
+    delay += step_delay * 2
 
     // while in the backprop state
     while (step_state === "backprop") {
 
         // remove the highlight that got added during the selection step
-        if (current_node !== root && testing === false) {
+        if (current_node !== root) {
             node_remove_color_layer_delayed(current_node, delay)
         }
         // do a backpropagation step, the node returned is the parent of the node given
         current_node = do_step_backpropagate(current_node)
-        delay += delay_delta
+        delay += step_delay
         // whenever enough iterations have been completed, find the next root node. Do this after a 
         // delay so that it only gets animated after the previous animations are done
-        if (iteration_number === max_iterations) {
-            if (testing === false) {
-                next_root_delayed(root, delay)
-            } else {
-                next_root(root)
-            }
+        if (iteration_number === conf.max_iterations) {
+            next_root_delayed(root, delay)
             break
         }
     }
@@ -284,12 +327,36 @@ function draw() {
         step_backprop_button.show()
     }
 
+    // if mouse is being pressed, update the offset of all the nodes and redraw them.
+    if (mouse_being_pressed) {
+        updateNodeOffset()
+        update_pos_of_children(first_root)
+    }
     // show the tree on the screen
     background(0)
     show_tree(first_root)
 }
 
+function updateNodeOffset() {
+    // Update the offset of all nodes position.
+
+    // First calculate the change in mouse position.
+    d_mouse_pos = createVector(mouseX, mouseY).sub(mouse_pos)
+
+    // Then add the change in mouse position to the node offset
+    node_offset.add(d_mouse_pos)
+
+    // save the new mouse position
+    mouse_pos = createVector(mouseX, mouseY)
+}
+
 function mousePressed() {
-    // Recursively go down the tree to update the position of each node
-    update_pos_of_children(first_root)
+    // on mouse click, set mouse_being_pressed to true and save the mouse position.
+    mouse_being_pressed = true
+    mouse_pos = createVector(mouseX, mouseY)
+}
+
+function mouseReleased() {
+    // on mouse release, set mouse_being_pressed to false 
+    mouse_being_pressed = false
 }
