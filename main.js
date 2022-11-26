@@ -1,5 +1,5 @@
 function setup() {
-    randomSeed(23)
+    random_seed = 0
     pixelDensity(2)
     createCanvas(800, 800)
 
@@ -16,12 +16,14 @@ function setup() {
     step_delay = 50 // delay between each animation step
     conf.node_size = 60 // diameter of the node on display
     conf.trajectory_color = [255, 0, 0] // rgb color of nodes in chosen trajectory
+    conf.max_children = 2 // max number of children a node can get
+    conf.randomize_children = false // whether to always let a node have the max number of children or to take a random amount between 0 and max children.
 
     // mcts hyperparams
     conf.gamma = 0.8 // discount factor
-    conf.max_tree_depth = 3 // maximum tree search depth for mcts
+    conf.max_tree_depth = 4 // maximum tree search depth for mcts
     conf.exploration_constant = 1 // exploration constant in the PUCT formula
-    conf.max_iterations = 20000 // number of iterations per search
+    conf.max_iterations = 2000 // number of iterations per search
 
     // mean and standard deviation of the rewards that are assigned 
     // randomly to newly created nodes.
@@ -29,6 +31,10 @@ function setup() {
     conf.reward_std = 0.2
 
     // buttons:
+    settings_button = createButton(' settings ')
+    settings_button.position(10, 10)
+    settings_button.mousePressed(show_hide_settings)
+
     finish_search_button = createButton('finish_search')
     finish_search_button.position(width / 2 - 103, 0)
     finish_search_button.mousePressed(do_finish_search_button)
@@ -45,10 +51,66 @@ function setup() {
     step_backprop_button.position(width / 2 + 103, 0)
     step_backprop_button.mousePressed(do_step_backprop_button)
 
+    reset_tree_button = createButton(' reset ')
+    reset_tree_button.position(width / 2 + 173, 0)
+    reset_tree_button.mousePressed(reset_tree)
+
+    root_pos_button = createButton(' root_node ')
+    root_pos_button.position(width / 2 - 103, 22)
+    root_pos_button.mousePressed(root_pos_setter)
+
+    best_return_pos_button = createButton(' best_node ')
+    best_return_pos_button.position(width / 2, 22)
+    best_return_pos_button.mousePressed(best_return_pos_setter)
+    
+    current_node_pos_button = createButton(' current_node ')
+    current_node_pos_button.position(width / 2+ 103, 22)
+    current_node_pos_button.mousePressed(current_node_pos_setter)
+
+    settings_menu =  new SettingsMenu()
+    settings_menu.hide()
+
     // reset the tree, creating only a root node
     reset_tree()
 
     // test() // uncomment to run the test function
+    // run_to_end()
+}
+
+function root_pos_setter() {
+    // set the view to the root node
+    reset_frame_offset()
+}
+
+function best_return_pos_setter() {
+    // set the view to the node with the highest return
+    node_offset = first_root_pos.copy().sub(max_return_node.position.copy())
+}
+
+function current_node_pos_setter() {
+    // set the view to the current node
+    node_offset = first_root_pos.copy().sub(current_node.position.copy()) 
+}
+
+function show_hide_settings() {
+    // toggle showing the settings
+    if (settings_menu.hidden === true) {
+        settings_menu.show()
+    } else {
+        settings_menu.hide()
+    }
+}
+
+function run_to_end() {
+    // run mcts searches until tree dpeth is reached
+    noLoop()
+    step_delay = 0
+    for (let i = 0; i < conf.max_tree_depth; i++) {
+        finish_search()
+    }
+    update_pos_of_children(first_root)
+    step_delay = 50
+    loop()
 }
 
 function switch_step_state_to(new_step_state) {
@@ -71,14 +133,28 @@ function reset_frame_offset() {
     node_offset = createVector(0, 0)
 }
 
+function remove_tree(node) {
+    // delete all nodes in the tree
+    for (let i = 0; i < node.num_children; i++) {
+        remove_tree(node.children[i])
+        delete node.children[i]
+    }
+}
+
 function reset_tree() {
     /**
      * resets the tree so that the is only 1 root node with no children.
      */
+    if (typeof first_root != "undefined"){
+        remove_tree(first_root)
+    }
+    randomSeed(random_seed)
 
     max_return = -Infinity // initialize max return to be -inf
+    max_return_node = null // node with the highest return
     second_max_return = -Infinity // initialize second max return to be -inf
     iteration_number = 0 // reset current iteration number
+    first_root_pos = createVector(width / 2, 70) // positon of the first root node
     first_root = new Node(null, 0) // set a new first_root node, this is the top node in the tree.
     root = first_root // set the current node to be the first_root, so mcts sees this as its root.
     root.set_default_color(conf.trajectory_color)
@@ -92,6 +168,7 @@ function reset_tree() {
     // next step to be performed. "selection" searches down in the tree until a leaf node is 
     // reached. "backprop" navigates back to the root node updating the search statistics of all 
     // nodes encountered.
+    reset_frame_offset()
 }
 
 function test() {
@@ -335,6 +412,10 @@ function draw() {
     // show the tree on the screen
     background(0)
     show_tree(first_root)
+    // show the settings if not hidden
+    if (settings_menu.hidden === false) {
+        settings_menu.print_text()
+    }
 }
 
 function updateNodeOffset() {

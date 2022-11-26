@@ -11,8 +11,12 @@ function add_child(node, action) {
 function expand_children(node) {
     // add children to the current node
 
-    // randomly add children
-    let children_added = int(random(3)) + 1
+    // set number of children to add
+    let children_added = conf.max_children
+    // randomize number of children to a number between 1 and conf.max_children(including)
+    if (conf.randomize_children) {
+        children_added = int(random(conf.max_children)) + 1
+    }
     let num_current_children = node.num_children
     for (let i = 0; i < children_added; i++) {
         add_child(node, num_current_children + i)

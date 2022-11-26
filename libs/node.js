@@ -47,6 +47,7 @@ class Node {
         if (this.return > max_return) {
             second_max_return = max_return
             max_return = this.return
+            max_return_node = this
         }
 
         // offspring_leaf_nodes indicates how many offsprings of this node are leaf nodes. It is 
@@ -63,7 +64,7 @@ class Node {
             this.position = createVector(width / 2, this.parent.position.y + conf.node_size * 2)
             this.hash = this.parent.hash + "." + str(this.action)
         } else {
-            this.position = createVector(width / 2, 50)
+            this.position = first_root_pos
             this.hash = "r"
         }
         this.set_default_color([232, 163, 79])
@@ -98,6 +99,7 @@ class Node {
 
         // set the color of the elipse border to be the topmost color in the color stack
         stroke(this.color[this.color.length - 1])
+        strokeWeight(1)
         if (this.return === max_return) {
             // if this node has the max return, highlight the border in green
             stroke([0, 255, 0])
