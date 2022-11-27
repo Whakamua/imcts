@@ -5,9 +5,9 @@ class SettingsMenu{
         this.texts = []
         this.hidden = false
         this.settings_row_size = 30
-        this.pos_x_input = 130
-        this.pos_x_text = 12
-        let pos_y = 42
+        this.pos_x_input = width/2-42
+        this.pos_x_text = width/2-170//12
+        let pos_y = 62
 
         // create input box
         this.texts.push("Random Seed")
@@ -82,7 +82,7 @@ class SettingsMenu{
     }
 
     print_text() {
-        let pos_y = 50
+        let pos_y = 68
         fill(255, 255, 255) // black filling
         stroke(255, 255, 255) // black stroke
         strokeWeight(0) // thickness of text

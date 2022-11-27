@@ -1,7 +1,7 @@
 function setup() {
     random_seed = 0
     pixelDensity(2)
-    createCanvas(800, 800)
+    createCanvas(max(500, window.innerWidth*2/3), max(500,window.innerHeight*2/3))
 
     conf = {} // configuration dict
 
@@ -32,11 +32,11 @@ function setup() {
 
     // buttons:
     settings_button = createButton(' settings ')
-    settings_button.position(10, 10)
+    settings_button.position(width/2-180, 32)
     settings_button.mousePressed(show_hide_settings)
 
-    readme_button = createButton(' how to use this app ')
-    readme_button.position(75, 10)
+    readme_button = createButton(' README ')
+    readme_button.position(width/2-180, 10)
     readme_button.mousePressed(open_README)
 
     finish_search_button = createButton('finish_search')
