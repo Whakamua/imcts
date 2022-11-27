@@ -1,7 +1,7 @@
 function setup() {
     random_seed = 0
     pixelDensity(2)
-    createCanvas(max(500, window.innerWidth*2/3), max(500,window.innerHeight*2/3))
+    createCanvas(max(500, window.innerWidth*0.99), max(500,window.innerHeight*0.99))
 
     conf = {} // configuration dict
 
