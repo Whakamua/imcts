@@ -35,36 +35,40 @@ function setup() {
     settings_button.position(10, 10)
     settings_button.mousePressed(show_hide_settings)
 
+    readme_button = createButton(' how to use this app ')
+    readme_button.position(75, 10)
+    readme_button.mousePressed(open_README)
+
     finish_search_button = createButton('finish_search')
-    finish_search_button.position(width / 2 - 103, 0)
+    finish_search_button.position(width / 2 - 103, 10)
     finish_search_button.mousePressed(do_finish_search_button)
 
     finish_iteration_button = createButton('finish_iteration')
-    finish_iteration_button.position(width / 2, 0)
+    finish_iteration_button.position(width / 2, 10)
     finish_iteration_button.mousePressed(do_finish_iteration_button)
 
-    step_selection_button = createButton('selection')
-    step_selection_button.position(width / 2 + 103, 0)
+    step_selection_button = createButton('expansion')
+    step_selection_button.position(width / 2 + 103, 10)
     step_selection_button.mousePressed(do_step_selection_button)
 
     step_backprop_button = createButton(' backprop ')
-    step_backprop_button.position(width / 2 + 103, 0)
+    step_backprop_button.position(width / 2 + 103, 10)
     step_backprop_button.mousePressed(do_step_backprop_button)
 
     reset_tree_button = createButton(' reset ')
-    reset_tree_button.position(width / 2 + 173, 0)
+    reset_tree_button.position(width / 2 + 183, 10)
     reset_tree_button.mousePressed(reset_tree)
 
     root_pos_button = createButton(' root_node ')
-    root_pos_button.position(width / 2 - 103, 22)
+    root_pos_button.position(width / 2 - 103, 32)
     root_pos_button.mousePressed(root_pos_setter)
 
     best_return_pos_button = createButton(' best_node ')
-    best_return_pos_button.position(width / 2, 22)
+    best_return_pos_button.position(width / 2, 32)
     best_return_pos_button.mousePressed(best_return_pos_setter)
     
     current_node_pos_button = createButton(' current_node ')
-    current_node_pos_button.position(width / 2+ 103, 22)
+    current_node_pos_button.position(width / 2+ 103, 32)
     current_node_pos_button.mousePressed(current_node_pos_setter)
 
     settings_menu =  new SettingsMenu()
@@ -75,6 +79,10 @@ function setup() {
 
     // test() // uncomment to run the test function
     // run_to_end()
+}
+
+function open_README() {
+    window.open('https://github.com/Whakamua/imcts/blob/main/README.md')
 }
 
 function root_pos_setter() {
@@ -154,21 +162,23 @@ function reset_tree() {
     max_return_node = null // node with the highest return
     second_max_return = -Infinity // initialize second max return to be -inf
     iteration_number = 0 // reset current iteration number
-    first_root_pos = createVector(width / 2, 70) // positon of the first root node
+    first_root_pos = createVector(width / 2, 80) // positon of the first root node
     first_root = new Node(null, 0) // set a new first_root node, this is the top node in the tree.
     root = first_root // set the current node to be the first_root, so mcts sees this as its root.
     root.set_default_color(conf.trajectory_color)
     current_node = root // set the current node to be the root, this node the mcts will evaluate.
     backprop_value = 0 // value that is used to update parent nodes value during backpropagation.
     one_time_mega_reward = 0 // reward given to the first node that is created at a depth equal to 
-    // the max tree depth, this is to make sure that there is one clear trajectory that should 
-    // dominate, this makes it possible for MCTS to find the most optimal trajectory with less 
-    // iterations.
+    // the max tree depth, this is to make sure that there is one trajectory with a much larger 
+    // sum of rewards, this makes it possible for MCTS to find the most optimal trajectory with 
+    // less iterations.
     step_state = "selection" // the step state indicates whether "selection" or "backprop" is the
     // next step to be performed. "selection" searches down in the tree until a leaf node is 
     // reached. "backprop" navigates back to the root node updating the search statistics of all 
     // nodes encountered.
     reset_frame_offset()
+    // first selection step is always an expansion
+    step_selection_button.elt.textContent = "expansion"
 }
 
 function test() {
@@ -283,10 +293,18 @@ function do_step_selection(node) {
         node.policy = policy_value[0]
         backprop_value = policy_value[1]
         switch_step_state_to("backprop")
+        // after the node is expanded, button text is set back to selection
+        step_selection_button.elt.textContent = "selection"
         return node
         // else get the next best child
     } else {
         node = get_best_child(node)
+        if (!node.is_expanded && node.depth !== conf.max_tree_depth) {
+            // if the node is not expanded and it is not at the maximum tree depth, the next
+            // selection step is an expansion, so indicating that by changing the text of the 
+            // button.
+            step_selection_button.elt.textContent = "expansion"
+        }
         return node
     }
 }
@@ -415,7 +433,7 @@ function draw() {
     // show the settings if not hidden
     if (settings_menu.hidden === false) {
         settings_menu.print_text()
-    }
+    }    
 }
 
 function updateNodeOffset() {
