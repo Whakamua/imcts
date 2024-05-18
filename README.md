@@ -1,6 +1,6 @@
 # imcts
 
-Welcome to imcts! An interactive implementation of MCTS.
+Welcome to [imcts](https://whakamua.github.io/imcts/)! An interactive implementation of MCTS.
 The buttons in the top allow you to click through the selection, expansion and
 backpropagation steps.
 
@@ -25,7 +25,7 @@ In the visualized tree, PUCT(s,a), Q(s,a), P(s,a) and r(s,a) are always displaye
 When a node is not expanded yet, meaning, it has no children, and it is not at the maximum tree depth, it is expanded. Upon expanding, it's children are generated and its prior policy and value are predicted:
 
 ### Node Evaluation
-The Prior and Value are often estimated using a Neural Network, in this case, the Prior is always predicted to be uniform andthe Value is predicted to be the average Value of a node. This can be done because the reward is sampled from a random distribution with mean $r_{mean}$. Therefore, the value is precited as $r_{mean} \cdot \frac{1}{1-\gamma}$, where $\gamma$ is the discount factor.
+The Prior and Value are often estimated using a Neural Network, in this case, the Prior is always predicted to be uniform and the Value is predicted to be the average Value of a node. This can be done because the reward is sampled from a random distribution with mean $r_{mean}$. Therefore, the value is precited as $r_{mean} \cdot \frac{1}{1-\gamma}$, where $\gamma$ is the discount factor.
 
 ## Backpropagation step
 The backpropagation step will backpropagate the information up in the tree. It uses the Bellman equation to update the value V and number of visits of each of its ancenstors like so:<br>
